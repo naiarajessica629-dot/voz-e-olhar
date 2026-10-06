@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Voz e Olhar</title>
+<style>
+/* Layout: tela única — balão de conversa em cima, dois botões gigantes (Olhar / Falar) ao alcance do polegar */
+:root{
+  --bg:#EAF2EF; --surface:#FFFFFF; --ink:#11302A; --muted:#4D6660;
+  --eye:#0B7A62; --eye-ink:#FFFFFF; --voice:#F4B400; --voice-ink:#2B2100;
+  --line:#C9DAD4; --alert:#B3261E;
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",Roboto,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0D1B18; --surface:#16302A; --ink:#EAF4F0; --muted:#A9C2BB;
+  --eye:#2FB592; --eye-ink:#06231C; --voice:#F7C531; --voice-ink:#2B2100;
+  --line:#27463F; --alert:#FF8A80; color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:20px;line-height:1.5}
+.app{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:16px 20px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+header{display:flex;align-items:center;gap:12px}
+.logo{width:48px;height:48px;flex:none}
+h1{font-family:var(--display);font-weight:800;font-size:30px;line-height:1;margin:0;flex:1}
+h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;color:var(--muted);margin-top:4px}
+.gear{background:none;border:none;color:var(--muted);padding:8px;width:48px;height:48px}
+.gear svg{width:28px;height:28px}
+
+.bubble{background:var(--surface);border:2px solid var(--line);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0;flex:1;overflow-y:auto}
+.bubble p{margin:0;font-size:22px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.who{font-family:var(--display);font-weight:600;font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.photo{width:100%;max-height:240px;object-fit:contain;border-radius:14px;background:var(--bg)}
+.heard{font-size:18px!important;color:var(--muted);font-style:italic}
+.thinking{display:flex;gap:8px;align-items:center;height:30px}
+.thinking span{width:14px;height:14px;border-radius:50%;background:var(--eye);animation:pulse 1.2s infinite ease-in-out}
+.thinking span:nth-child(2){animation-delay:.2s}.thinking span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+.small{display:inline-flex;align-items:center;gap:10px;align-self:flex-start;border:2px solid var(--line);background:transparent;color:var(--ink);font-family:var(--display);font-weight:600;font-size:18px;padding:10px 18px;border-radius:999px;min-height:52px}
+.small svg{width:26px;height:26px}
+.small.on{background:var(--eye);border-color:var(--eye);color:var(--eye-ink)}
+.note{font-size:17px!important;color:var(--alert)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.big{border:none;border-radius:28px;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:var(--display);font-weight:800;font-size:28px;line-height:1;transition:transform .12s ease, box-shadow .12s ease;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+.big:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.big svg{width:76px;height:76px}
+.eye{background:var(--eye);color:var(--eye-ink)}
+.voice{background:var(--voice);color:var(--voice-ink)}
+.voice.listening{animation:ring 1.4s infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(244,180,0,.7),0 6px 0 rgba(0,0,0,.18)}100%{box-shadow:0 0 0 22px rgba(244,180,0,0),0 6px 0 rgba(0,0,0,.18)}}
+.big:disabled{opacity:.55}
+
+/* Ajustes (para quem configura o aparelho) */
+.config{position:fixed;inset:0;background:var(--bg);overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:14px;font-size:17px}
+.config h2{font-family:var(--display);font-size:26px;margin:0}
+.config p{margin:0;color:var(--muted)}
+.config label{font-weight:700;display:flex;flex-direction:column;gap:6px}
+.config input{font:inherit;font-size:17px;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
+.config .btns{display:flex;gap:10px;flex-wrap:wrap}
+.config button.main{border:none;border-radius:14px;background:var(--eye);color:var(--eye-ink);font-family:var(--display);font-weight:800;font-size:20px;padding:12px 22px}
+.config button.sec{border:2px solid var(--line);border-radius:14px;background:transparent;color:var(--ink);font-family:var(--display);font-weight:600;font-size:18px;padding:10px 18px}
+.config code{font-size:15px;background:var(--surface);padding:2px 6px;border-radius:6px}
+#cfgMsg{font-weight:700;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="23" fill="var(--eye)"/>
+      <path d="M8 24c4-7 9.5-10.5 16-10.5S36 17 40 24c-4 7-9.5 10.5-16 10.5S12 31 8 24z" fill="#fff"/>
+      <circle cx="24" cy="24" r="6" fill="#F4B400"/><circle cx="24" cy="24" r="2.6" fill="#11302A"/>
+    </svg>
+    <h1>Voz e Olhar<small>Mostre uma foto ou fale comigo</small></h1>
+    <button class="gear" id="gear" type="button" aria-label="Ajustes">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+    </button>
+  </header>
+
+  <section class="bubble" aria-live="polite">
+    <div class="who"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--eye)"/></svg><span id="who">Seu ajudante</span></div>
+    <img id="photo" class="photo" alt="Foto que você tirou" hidden>
+    <p id="heard" class="heard" hidden></p>
+    <div id="thinking" class="thinking" hidden><span></span><span></span><span></span></div>
+    <p id="answer">Oi! Que bom ter você aqui. Eu sou o Voz e Olhar. Aperte o botão verde para me mostrar uma coisa com a câmera. Ou aperte o botão amarelo para falar comigo.</p>
+    <button class="small" id="replay" type="button">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+      <span id="replayLabel">Ouvir</span>
+    </button>
+    <p id="note" class="note" hidden></p>
+  </section>
+
+  <div class="actions">
+    <button class="big eye" id="eyeBtn" type="button" aria-label="Olhar: tirar foto">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 14.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+      Olhar
+    </button>
+    <button class="big voice" id="voiceBtn" type="button" aria-label="Falar">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
+      <span id="voiceLabel">Falar</span>
+    </button>
+  </div>
+</div>
+
+<div class="config" id="config" hidden>
+  <h2>Ajustes</h2>
+  <p>Esta parte é para quem está configurando o celular. Cole aqui a chave da API do Claude (começa com <code>sk-ant-</code>). Ela fica guardada só neste aparelho.</p>
+  <label>Chave da API
+    <input id="cfgKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+  </label>
+  <label>Modelo
+    <input id="cfgModel" type="text" autocomplete="off">
+  </label>
+  <div class="btns">
+    <button class="main" id="cfgSave" type="button">Salvar</button>
+    <button class="sec" id="cfgTest" type="button">Testar</button>
+    <button class="sec" id="cfgClose" type="button">Fechar</button>
+  </div>
+  <p id="cfgMsg"></p>
+  <p>Dica: crie a chave em console.anthropic.com e coloque um limite de gasto mensal lá, por segurança.</p>
+</div>
+
+<script>
+const MODELO_PADRAO = "claude-sonnet-5-5";
+const RULES = `Você é o assistente virtual principal do aplicativo "Voz e Olhar", feito para apoiar pessoas analfabetas ou com pouca leitura na rotina do dia a dia.
+Seja muito prestativo, paciente, carinhoso e claro.
+
+Como falar:
+1. Nunca use termos técnicos, jargões ou palavras difíceis. Fale simples e natural, como numa conversa amiga de compadre ou comadre.
+2. Sua resposta vai virar áudio para a pessoa ouvir. Escreva frases curtas, em tom acolhedor e com ritmo calmo.
+3. Evite texto longo, listas grandes e números complicados. Se precisar explicar algo, use no máximo 3 passos, falados em frases ("Primeiro... Depois... Por último...").
+4. Não use asteriscos, marcadores, emojis, títulos nem formatação. Só texto corrido, de no máximo umas 5 frases curtas.
+
+Quando chegar uma FOTO: diga o que é a coisa de forma simples e explique para que serve ou como ajuda no dia a dia. Exemplo: "Isso é um pacote de arroz. Ele serve para fazer comida. Para cozinhar, você mistura com água e leva ao fogo."
+Se for remédio, diga o nome e para que serve, e sempre lembre de perguntar a alguém de confiança, ao farmacêutico ou ao posto de saúde antes de tomar. Se for algo perigoso (veneno, produto de limpeza, fogo, eletricidade), avise com cuidado. Se for dinheiro, conta, documento ou papel, leia o que for importante (valor, data de vencimento, nome) de forma simples. Se a foto estiver ruim, peça com carinho para tirar outra, mais perto e com mais luz.
+
+Quando chegar uma PERGUNTA: responda direto, focando na solução prática, com passo a passo falado e simples.
+
+Sempre com respeito, encorajamento e jeito humano. Responda em português do Brasil.`;
+
+const A = window.Android || null;
+const $ = id => document.getElementById(id);
+const answerEl=$("answer"), photoEl=$("photo"), heardEl=$("heard"), thinkingEl=$("thinking"), noteEl=$("note"), whoEl=$("who");
+const eyeBtn=$("eyeBtn"), voiceBtn=$("voiceBtn");
+let turns=[], busy=false, listening=false, falando=false, pendente=null;
+
+function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v); }catch(e){ return null; } }
+function modelo(){ return ls("modelo") || MODELO_PADRAO; }
+
+/* ---------- Fala ---------- */
+function speak(t){ if(A&&t) A.falar(t); }
+function stopSpeak(){ if(A) A.pararFala(); }
+window.onFalaComecou=()=>{ falando=true; $("replay").classList.add("on"); $("replayLabel").textContent="Parar"; };
+window.onFalaAcabou=()=>{ falando=false; $("replay").classList.remove("on"); $("replayLabel").textContent="Ouvir"; };
+$("replay").onclick=()=>{ if(falando) stopSpeak(); else speak(answerEl.textContent); };
+
+/* ---------- Tela ---------- */
+function showNote(t){ noteEl.textContent=t||""; noteEl.hidden=!t; }
+function setBusy(on){ busy=on; thinkingEl.hidden=!on; eyeBtn.disabled=on; voiceBtn.disabled=on&&!listening; if(on){ answerEl.textContent=""; showNote(""); } }
+function clean(t){ return t.replace(/[*#_>`•]/g,"").replace(/^\s*[-–]\s+/gm,"").trim(); }
+
+const ERROS={
+  sem_chave:"O aplicativo ainda não está configurado. Peça para alguém de confiança abrir os ajustes, na rodinha lá em cima.",
+  chave_invalida:"A chave do aplicativo não está funcionando. Peça para alguém de confiança arrumar nos ajustes.",
+  sem_credito:"O aplicativo ficou sem crédito. Peça para alguém de confiança resolver.",
+  ocupado:"Estou com muita gente agora. Espere um pouquinho e tente de novo.",
+  sem_internet:"Parece que o celular está sem internet. Veja se o wi-fi ou os dados estão ligados e tente de novo.",
+  servidor:"Deu um probleminha aqui. Aperte o botão de novo, com calma.",
+  camera:"Não consegui abrir a câmera. Tente de novo, por favor.",
+  mic:"Não consegui ouvir. Aperte o botão amarelo de novo.",
+  mic_negado:"Eu preciso de permissão para usar o microfone. Peça para alguém de confiança liberar nos ajustes do celular.",
+  sem_reconhecimento:"Este celular não tem o serviço de ouvir a voz. Peça para alguém instalar o aplicativo Google.",
+};
+function erro(code){
+  if(listening) setListening(false);
+  setBusy(false);
+  const t=ERROS[code]||ERROS.servidor;
+  if(!answerEl.textContent) answerEl.textContent="";
+  showNote(t); speak(t);
+}
+window.onErro=code=>{
+  if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="Não funcionou: "+(ERROS[code]||code); return; }
+  pendente=null; erro(code);
+};
+
+/* ---------- Conversa com o Claude ---------- */
+function ask({text, image}){
+  if(!A){ showNote("Abra pelo aplicativo do celular."); return; }
+  if(!A.getKey()){ erro("sem_chave"); return; }
+  stopSpeak(); setBusy(true);
+  const pedido = image
+    ? "A pessoa me mandou uma FOTO de um objeto. Olhe a imagem e responda seguindo as regras."+(text?`\nEla também disse: "${text}"`:"")
+    : `A pessoa perguntou falando: "${text}"`;
+  const content = image
+    ? [{type:"image",source:{type:"base64",media_type:"image/jpeg",data:image}},{type:"text",text:pedido}]
+    : pedido;
+  const msgs=[...turns.slice(-6),{role:"user",content}];
+  pendente={pedido:image?"(Mandei uma foto.)":pedido};
+  A.perguntar(JSON.stringify({model:modelo(),max_tokens:700,system:RULES,messages:msgs}));
+}
+window.onResposta=raw=>{
+  if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="Funcionou! Pode fechar os ajustes."; return; }
+  let t="";
+  try{ const j=JSON.parse(raw); t=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"); }catch(e){}
+  t=clean(t);
+  setBusy(false);
+  if(!t){ erro("servidor"); return; }
+  answerEl.textContent=t;
+  if(pendente) turns.push({role:"user",content:pendente.pedido},{role:"assistant",content:t});
+  pendente=null;
+  speak(t);
+};
+
+/* ---------- Olhar ---------- */
+eyeBtn.onclick=()=>{ if(!A) return; stopSpeak(); showNote(""); A.tirarFoto(); };
+window.onFoto=b64=>{
+  photoEl.src="data:image/jpeg;base64,"+b64; photoEl.hidden=false;
+  heardEl.hidden=true; whoEl.textContent="Olhando a sua foto";
+  ask({image:b64});
+};
+window.onFotoCancelada=()=>{};
+
+/* ---------- Falar ---------- */
+function setListening(on){
+  listening=on; voiceBtn.classList.toggle("listening",on);
+  $("voiceLabel").textContent=on?"Pronto":"Falar";
+  voiceBtn.disabled=busy&&!on;
+}
+voiceBtn.onclick=()=>{
+  if(!A) return;
+  if(listening){ A.pararDeOuvir(); return; }
+  stopSpeak(); showNote(""); A.ouvir();
+};
+window.onOuvindo=()=>{
+  setListening(true); photoEl.hidden=true; heardEl.hidden=true;
+  whoEl.textContent="Estou ouvindo...";
+  answerEl.textContent="Pode falar. Quando terminar, é só ficar quietinho que eu entendo.";
+};
+window.onParcial=t=>{ heardEl.textContent="Você disse: "+t; heardEl.hidden=false; };
+window.onParouDeOuvir=()=>{ whoEl.textContent="Seu ajudante"; };
+window.onOuviu=t=>{
+  setListening(false); whoEl.textContent="Seu ajudante";
+  t=(t||"").trim();
+  if(!t){ answerEl.textContent="Não ouvi nada. Aperte o botão amarelo e fale bem pertinho do celular."; speak(answerEl.textContent); return; }
+  heardEl.textContent="Você disse: "+t; heardEl.hidden=false;
+  ask({text:t});
+};
+
+/* ---------- Ajustes ---------- */
+const cfg=$("config");
+function abrirAjustes(){ $("cfgKey").value=A?A.getKey():""; $("cfgModel").value=modelo(); $("cfgMsg").textContent=""; cfg.hidden=false; }
+function salvar(){ if(A) A.setKey($("cfgKey").value.trim()); const m=$("cfgModel").value.trim(); ls("modelo", m||MODELO_PADRAO); }
+$("gear").onclick=abrirAjustes;
+$("cfgSave").onclick=()=>{ salvar(); $("cfgMsg").textContent="Guardado."; };
+$("cfgTest").onclick=()=>{
+  salvar(); if(!A) return;
+  if(!A.getKey()){ $("cfgMsg").textContent="Cole a chave primeiro."; return; }
+  $("cfgMsg").textContent="Testando...";
+  pendente={cfg:true};
+  A.perguntar(JSON.stringify({model:modelo(),max_tokens:20,messages:[{role:"user",content:"Responda só: ok"}]}));
+};
+$("cfgClose").onclick=()=>{ cfg.hidden=true; };
+window.voltar=()=>{ if(!cfg.hidden){ cfg.hidden=true; return true; } if(listening){ A&&A.pararDeOuvir(); return true; } return false; };
+
+/* Primeira vez: sem chave, abre os ajustes */
+if(A && !A.getKey()) abrirAjustes();
+</script>
+</body>
+</html>

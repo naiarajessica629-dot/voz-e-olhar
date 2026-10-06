@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Olho estilizado: branco com íris amarela, centrado na área segura de 108dp -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,54 C36,41 44,35 54,35 C64,35 72,41 80,54 C72,67 64,73 54,73 C44,73 36,67 28,54 Z" />
+    <path
+        android:fillColor="#F4B400"
+        android:pathData="M54,44 A10,10 0 1,1 53.99,44 Z" />
+    <path
+        android:fillColor="#11302A"
+        android:pathData="M54,49.5 A4.5,4.5 0 1,1 53.99,49.5 Z" />
+</vector>
