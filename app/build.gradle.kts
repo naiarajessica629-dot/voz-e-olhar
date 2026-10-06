@@ -10,8 +10,8 @@ android {
         applicationId = "br.com.vozeolhar"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     buildTypes {
@@ -28,4 +28,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    // Leitura de texto e reconhecimento de objetos no próprio celular (grátis, sem chave)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
 }

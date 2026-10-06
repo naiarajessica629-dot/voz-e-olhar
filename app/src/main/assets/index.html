@@ -42,6 +42,7 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
 .small{display:inline-flex;align-items:center;gap:10px;align-self:flex-start;border:2px solid var(--line);background:transparent;color:var(--ink);font-family:var(--display);font-weight:600;font-size:18px;padding:10px 18px;border-radius:999px;min-height:52px}
 .small svg{width:26px;height:26px}
 .small.on{background:var(--eye);border-color:var(--eye);color:var(--eye-ink)}
+.small.google{border-color:var(--eye);color:var(--eye)}
 .note{font-size:17px!important;color:var(--alert)}
 
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -94,6 +95,10 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
       <span id="replayLabel">Ouvir</span>
     </button>
+    <button class="small google" id="googleBtn" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+      <span id="googleLabel">Perguntar ao Google</span>
+    </button>
     <p id="note" class="note" hidden></p>
   </section>
 
@@ -111,8 +116,8 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
 
 <div class="config" id="config" hidden>
   <h2>Ajustes</h2>
-  <p>Esta parte é para quem está configurando o celular. Cole aqui a chave da API do Claude (começa com <code>sk-ant-</code>). Ela fica guardada só neste aparelho.</p>
-  <label>Chave da API
+  <p>Esta parte é para quem está configurando o celular. <strong>A chave é opcional.</strong> Sem ela, o app lê as fotos com o próprio celular, pesquisa na internet e oferece o Google. Com uma chave da API do Claude (começa com <code>sk-ant-</code>), as explicações ficam mais completas e no jeito simples de conversa. A chave fica guardada só neste aparelho; para tirar, apague o campo e salve.</p>
+  <label>Chave da API (opcional)
     <input id="cfgKey" type="password" autocomplete="off" placeholder="sk-ant-...">
   </label>
   <label>Modelo
@@ -184,6 +189,8 @@ const ERROS={
   mic:"Não consegui ouvir. Aperte o botão amarelo de novo.",
   mic_negado:"Eu preciso de permissão para usar o microfone. Peça para alguém de confiança liberar nos ajustes do celular.",
   sem_reconhecimento:"Este celular não tem o serviço de ouvir a voz. Peça para alguém instalar o aplicativo Google.",
+  sem_google:"Não achei o aplicativo do Google neste celular. Peça para alguém instalar o aplicativo Google.",
+  sem_foto:"Primeiro tire uma foto no botão verde.",
 };
 function erro(code){
   if(listening) setListening(false);
@@ -200,6 +207,13 @@ window.onErro=code=>{
     if(pendente&&pendente.body){ delete pendente.body.tools; A.perguntar(JSON.stringify(pendente.body)); return; }
   }
   if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="Não funcionou: "+(ERROS[code]||code); return; }
+  /* Chave com problema: responde no modo gratuito em vez de mostrar erro */
+  if(pendente&&pendente.reserva!==undefined&&["sem_credito","chave_invalida","ocupado","servidor","sem_chave"].includes(code)){
+    const reserva=pendente.reserva; pendente=null;
+    if(reserva===true){ if(ultimaAnalise){ comporFoto(ultimaAnalise).then(responder); } else { esperandoAnalise=true; } }
+    else { setBusy(false); respostaGratis(reserva); }
+    return;
+  }
   pendente=null; erro(code);
 };
 function usarBusca(){ return ls("busca")!=="0" && ls("semPesquisa")!=="1"; }
@@ -218,7 +232,7 @@ function ask({text, image}){
   const msgs=[...turns.slice(-6),{role:"user",content}];
   const body={model:modelo(),max_tokens:1024,system:RULES,messages:msgs};
   if(usarBusca()) body.tools=[BUSCA];
-  pendente={pedido:image?"(Mandei uma foto.)":pedido, body, voltas:0};
+  pendente={pedido:image?"(Mandei uma foto.)":pedido, body, voltas:0, reserva:image?true:text};
   A.perguntar(JSON.stringify(body));
 }
 /* Pega só o texto final: o que vem depois do último resultado de pesquisa */
@@ -253,12 +267,170 @@ window.onResposta=raw=>{
   speak(t);
 };
 
+/* =====================================================================
+   MODO GRATUITO (sem chave): o celular lê a foto e a Wikipédia responde.
+   Quando não basta, o botão leva ao Google (Lens para foto, Assistente para pergunta).
+   ===================================================================== */
+const comIA=()=>!!(A&&A.getKey());
+let googleModo=null, googlePergunta="", fotoComIA=false, ultimaAnalise=null, esperandoAnalise=false;
+
+const gBtn=$("googleBtn");
+function mostrarGoogle(modo, pergunta){
+  googleModo=modo; googlePergunta=pergunta||"";
+  $("googleLabel").textContent = modo==="lens" ? "Ver no Google" : "Perguntar ao Google";
+  gBtn.hidden=false;
+}
+function esconderGoogle(){ gBtn.hidden=true; googleModo=null; }
+gBtn.onclick=()=>{
+  if(!A) return; stopSpeak();
+  if(googleModo==="lens") A.abrirLens(); else A.perguntarGoogle(googlePergunta);
+};
+function responder(t){ setBusy(false); answerEl.textContent=t; speak(t); }
+
+/* --- Internet grátis: Wikipédia em português --- */
+const webCbs={}; let webN=0;
+function web(url){
+  return new Promise(res=>{
+    const id="w"+(++webN); webCbs[id]=res; A.buscarWeb(id,url);
+    setTimeout(()=>{ if(webCbs[id]){ delete webCbs[id]; res({status:0}); } },25000);
+  });
+}
+window.onWeb=s=>{ let r; try{ r=JSON.parse(s); }catch(e){ return; } const cb=webCbs[r.id]; if(cb){ delete webCbs[r.id]; cb(r); } };
+async function wiki(q){
+  const s=await web("https://pt.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&utf8=1&srsearch="+encodeURIComponent(q));
+  if(s.status===-1) return {offline:true};
+  let titulo=null; try{ titulo=JSON.parse(s.corpo).query.search[0].title; }catch(e){}
+  if(!titulo) return null;
+  const r=await web("https://pt.wikipedia.org/api/rest_v1/page/summary/"+encodeURIComponent(titulo.replace(/ /g,"_")));
+  try{ const j=JSON.parse(r.corpo); if(j.type==="disambiguation"||!j.extract) return null; return {titulo, texto:j.extract}; }catch(e){ return null; }
+}
+function resumo(t,n){
+  t=t.replace(/\s*\([^)]*\)/g,"").replace(/\s*\[[^\]]*\]/g,"").replace(/\s+/g," ").trim();
+  const frases=t.match(/[^.!?]+[.!?]+/g)||[t];
+  return frases.slice(0,n).map(f=>f.trim()).join(" ");
+}
+const norm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+
+/* --- Perguntas por voz --- */
+const DO_DIA=/\b(quando|hoje|amanh[ãa]|ontem|agora|hor[áa]rio|que horas|pre[çc]o|quanto custa|endere[çc]o|onde fica|onde tem|telefone|tempo|chuva|chover|temperatura|data|m[êe]s|calend[áa]rio|pagamento|cai|vence|aberto|perto|[ôo]nibus|not[íi]cia|resultado|jogo|vacina[çc][ãa]o)\b/i;
+const COMO_FAZER=/\bcomo (eu |que )?(fa[çc]o|faz|fazer|tiro|tirar|pego|pegar|uso|usar|tomo|tomar|consigo|conseguir|marco|marcar|pago|pagar|chego|chegar)\b/i;
+function limparPergunta(t){
+  return t.toLowerCase().replace(/[?!.,]/g," ")
+    .replace(/^\s*(me )?(fala|diz|explica|conta|explique|fale)( pra mim| para mim)?( sobre)?\s+/,"")
+    .replace(/^\s*(o que (é|e|são|sao|significa|quer dizer)|quem (é|e|foi|são|sao)|para que serve|pra que serve|qual (é|e) o significado de)\s+/,"")
+    .replace(/^\s*(o|a|os|as|um|uma)\s+/,"").replace(/\s+/g," ").trim();
+}
+async function respostaGratis(t){
+  esconderGoogle(); showNote("");
+  if(DO_DIA.test(t)||COMO_FAZER.test(t)){
+    mostrarGoogle("assist",t);
+    responder("Essa pergunta precisa de informação de hoje, ou de um passo a passo. Quem sabe melhor é o Google. Toque no botão Perguntar ao Google e repita a sua pergunta para ele.");
+    return;
+  }
+  setBusy(true);
+  const q=limparPergunta(t)||t;
+  const r=await wiki(q);
+  mostrarGoogle("assist",t);
+  if(r&&r.offline){ erro("sem_internet"); return; }
+  if(r) responder("Achei isso na internet. "+resumo(r.texto,2)+" Se quiser saber mais, toque em Perguntar ao Google.");
+  else responder("Não achei uma resposta boa para isso. Toque no botão Perguntar ao Google e repita a sua pergunta.");
+}
+
+/* --- Leitura da foto --- */
+const ROTULOS={
+  "Food":"uma comida","Fruit":"uma fruta","Vegetable":"uma verdura ou legume","Bread":"um pão","Cake":"um bolo",
+  "Cookie":"um biscoito","Pizza":"uma pizza","Cheeseburger":"um hambúrguer","Sandwich":"um sanduíche","Egg":"um ovo",
+  "Meat":"uma carne","Fish":"um peixe","Rice":"arroz","Pasta":"macarrão","Soup":"uma sopa","Juice":"um suco",
+  "Coffee":"café","Tea":"chá","Milk":"leite","Drink":"uma bebida","Wine":"vinho","Beer":"cerveja",
+  "Bottle":"uma garrafa","Cup":"uma xícara ou copo","Glass":"um copo","Plate":"um prato","Bowl":"uma tigela",
+  "Spoon":"uma colher","Fork":"um garfo","Knife":"uma faca","Pot":"uma panela","Kitchen":"uma cozinha",
+  "Box":"uma caixa","Bag":"uma bolsa ou sacola","Paper":"um papel","Book":"um livro","Newspaper":"um jornal",
+  "Poster":"um cartaz","Menu":"um cardápio","Receipt":"um recibo ou nota","Money":"dinheiro","Coin":"uma moeda",
+  "Credit card":"um cartão","Phone":"um celular","Mobile phone":"um celular","Computer":"um computador",
+  "Television":"uma televisão","Monitor":"uma tela","Keyboard":"um teclado","Remote control":"um controle remoto",
+  "Clock":"um relógio","Watch":"um relógio de pulso","Glasses":"óculos","Sunglasses":"óculos escuros",
+  "Shoe":"um sapato","Sneakers":"um tênis","Shirt":"uma camisa","Jeans":"uma calça jeans","Dress":"um vestido",
+  "Hat":"um chapéu ou boné","Umbrella":"um guarda-chuva","Chair":"uma cadeira","Couch":"um sofá","Bed":"uma cama",
+  "Table":"uma mesa","Desk":"uma escrivaninha","Door":"uma porta","Window":"uma janela","Lamp":"uma lâmpada ou abajur",
+  "Sink":"uma pia","Bathtub":"uma banheira","Toilet":"um vaso sanitário","Mirror":"um espelho","Curtain":"uma cortina",
+  "Car":"um carro","Bus":"um ônibus","Bicycle":"uma bicicleta","Motorcycle":"uma moto","Truck":"um caminhão",
+  "Train":"um trem","Airplane":"um avião","Boat":"um barco","Road":"uma rua ou estrada","Bridge":"uma ponte",
+  "Building":"um prédio","House":"uma casa","Church":"uma igreja","Shop":"uma loja","Supermarket":"um supermercado",
+  "Dog":"um cachorro","Cat":"um gato","Bird":"um pássaro","Horse":"um cavalo","Cattle":"um boi ou vaca",
+  "Chicken":"uma galinha","Insect":"um inseto","Butterfly":"uma borboleta","Flower":"uma flor","Plant":"uma planta",
+  "Tree":"uma árvore","Garden":"um jardim","Grass":"grama","Toy":"um brinquedo","Ball":"uma bola","Doll":"uma boneca",
+  "Baby":"um bebê","Person":"uma pessoa","Hand":"uma mão","Selfie":"uma pessoa","Tool":"uma ferramenta",
+  "Medicine":"um remédio","Pill":"um remédio","Pills":"um remédio","Cosmetics":"um produto de beleza",
+  "Soap":"um sabonete","Toothbrush":"uma escova de dente","Bucket":"um balde","Broom":"uma vassoura",
+  "Fire":"fogo","Candle":"uma vela","Stove":"um fogão","Refrigerator":"uma geladeira","Microwave":"um micro-ondas",
+  "Washing machine":"uma máquina de lavar","Fan":"um ventilador","Pen":"uma caneta","Pencil":"um lápis",
+  "Scissors":"uma tesoura","Key":"uma chave","Wallet":"uma carteira","Bank":"um banco","Cash":"dinheiro"
+};
+const REMEDIO=/\b(mg|ml|comprimidos?|c[áa]psulas?|gotas|xarope|uso oral|uso adulto|uso pedi[áa]trico|venda sob prescri[çc][ãa]o|bula|farmac[êe]utico|medicamento|gen[ée]rico)\b/i;
+const PERIGO=/\b(veneno|t[óo]xico|inflam[áa]vel|corrosivo|perigo|cuidado|n[ãa]o ingerir|mantenha fora do alcance)\b/i;
+function cortarPalavras(t,n){ const p=t.split(/\s+/); return p.length>n ? p.slice(0,n).join(" ")+"..." : t; }
+
+async function comporFoto(a){
+  const linhas=(a.blocos||[]).map(b=>({t:String(b.t||"").trim(),h:+b.h||0,y:+b.y||0}))
+    .filter(b=>b.t.length>1 && /[A-Za-zÀ-ú0-9]/.test(b.t));
+  const tudo=linhas.slice().sort((x,y)=>x.y-y.y).map(b=>b.t).join(" ");
+  const grandes=linhas.slice().sort((x,y)=>y.h-x.h);
+  const rot=(a.rotulos||[]).filter(r=>r.c>=0.65).map(r=>ROTULOS[r.t]).filter(Boolean);
+  const partes=[];
+
+  if(REMEDIO.test(tudo)) partes.push("Isso parece ser um remédio.");
+  else if(rot.length) partes.push("Parece ser "+rot[0]+".");
+
+  if(grandes.length){
+    partes.push("Está escrito em letras grandes: "+grandes.slice(0,2).map(b=>b.t).join(", ")+".");
+    const resto=grandes.slice(2,6).map(b=>b.t).join(", ");
+    if(resto) partes.push("Em letras menores: "+cortarPalavras(resto,18)+".");
+  }
+
+  const valores=tudo.match(/R\$\s?\d[\d.]*,\d{2}/g);
+  if(valores) partes.push("Tem valor escrito: "+[...new Set(valores)].slice(0,2).join(" e ")+".");
+  const datas=tudo.match(/\b\d{2}\/\d{2}\/\d{2,4}\b/g);
+  if(datas){
+    if(/venc/i.test(tudo)) partes.push("A data de vencimento é "+datas[0]+".");
+    else if(/val/i.test(tudo)) partes.push("A validade é "+datas[datas.length-1]+".");
+    else partes.push("Tem uma data: "+datas[0]+".");
+  }
+
+  /* Procura o nome principal na internet para dizer para que serve */
+  const nome=grandes[0]?grandes[0].t:"";
+  if(nome && nome.length>=3 && nome.length<=30 && nome.split(/\s+/).length<=3 && /[A-Za-zÀ-ú]{3}/.test(nome)){
+    const r=await wiki(nome);
+    if(r&&!r.offline){
+      const n1=norm(nome).split(" ")[0], tt=norm(r.titulo);
+      if(n1.length>=3 && (tt.includes(n1)||norm(r.texto).slice(0,200).includes(n1)))
+        partes.push("Na internet diz que "+resumo(r.texto,1).replace(/^./,c=>c.toLowerCase()));
+    }
+  }
+
+  if(REMEDIO.test(tudo)) partes.push("Antes de tomar, pergunte para alguém de confiança ou para o farmacêutico.");
+  if(PERIGO.test(tudo)) partes.push("Cuidado: pode ser perigoso. Guarde longe das crianças.");
+
+  if(!partes.length) return "Não consegui entender bem a foto. Tente tirar outra, mais perto e com mais luz. Ou toque em Ver no Google, que o Google olha a foto para você.";
+  partes.push("Se quiser saber mais, toque em Ver no Google.");
+  return partes.join(" ");
+}
+
 /* ---------- Olhar ---------- */
-eyeBtn.onclick=()=>{ if(!A) return; stopSpeak(); showNote(""); A.tirarFoto(); };
+eyeBtn.onclick=()=>{ if(!A) return; stopSpeak(); showNote(""); esconderGoogle(); A.tirarFoto(); };
 window.onFoto=b64=>{
   photoEl.src="data:image/jpeg;base64,"+b64; photoEl.hidden=false;
   heardEl.hidden=true; whoEl.textContent="Olhando a sua foto";
-  ask({image:b64});
+  ultimaAnalise=null; mostrarGoogle("lens");
+  if(comIA()){ fotoComIA=true; esperandoAnalise=false; ask({image:b64}); }
+  else { fotoComIA=false; esperandoAnalise=true; setBusy(true); }
+};
+window.onAnalise=async s=>{
+  try{ ultimaAnalise=JSON.parse(s); }catch(e){ ultimaAnalise={}; }
+  if(!esperandoAnalise) return;
+  esperandoAnalise=false;
+  const t=await comporFoto(ultimaAnalise);
+  mostrarGoogle("lens");
+  responder(t);
 };
 window.onFotoCancelada=()=>{};
 
@@ -285,7 +457,8 @@ window.onOuviu=t=>{
   t=(t||"").trim();
   if(!t){ answerEl.textContent="Não ouvi nada. Aperte o botão amarelo e fale bem pertinho do celular."; speak(answerEl.textContent); return; }
   heardEl.textContent="Você disse: "+t; heardEl.hidden=false;
-  ask({text:t});
+  if(comIA()){ mostrarGoogle("assist",t); ask({text:t}); }
+  else respostaGratis(t);
 };
 
 /* ---------- Ajustes ---------- */
@@ -311,8 +484,7 @@ $("cfgTest").onclick=()=>{
 $("cfgClose").onclick=()=>{ cfg.hidden=true; };
 window.voltar=()=>{ if(!cfg.hidden){ cfg.hidden=true; return true; } if(listening){ A&&A.pararDeOuvir(); return true; } return false; };
 
-/* Primeira vez: sem chave, abre os ajustes */
-if(A && !A.getKey()) abrirAjustes();
+/* Sem chave o app já funciona no modo gratuito: não abre os ajustes sozinho. */
 </script>
 </body>
 </html>

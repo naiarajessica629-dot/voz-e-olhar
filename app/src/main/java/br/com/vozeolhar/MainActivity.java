@@ -26,6 +26,15 @@ import android.webkit.WebViewClient;
 
 import androidx.core.content.FileProvider;
 
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.label.ImageLabel;
+import com.google.mlkit.vision.label.ImageLabeling;
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -150,6 +159,137 @@ public class MainActivity extends Activity {
         public void perguntar(String corpoJson) {
             new Thread(() -> chamarClaude(corpoJson)).start();
         }
+
+        /** Busca grátis na Wikipédia em português. Resposta em onWeb(json com id e corpo). */
+        @JavascriptInterface
+        public void buscarWeb(String id, String url) {
+            new Thread(() -> baixarWeb(id, url)).start();
+        }
+
+        /** Abre a última foto no Google Lens (ou em outro app que saiba pesquisar imagens). */
+        @JavascriptInterface
+        public void abrirLens() {
+            runOnUiThread(MainActivity.this::mandarFotoProGoogle);
+        }
+
+        /** Abre o Google Assistente para a pessoa perguntar falando; se não houver, pesquisa no Google. */
+        @JavascriptInterface
+        public void perguntarGoogle(String pergunta) {
+            runOnUiThread(() -> abrirGoogle(pergunta));
+        }
+    }
+
+    // ---------------------------------------------------------------- Google e internet
+
+    private void mandarFotoProGoogle() {
+        if (arquivoFoto == null || !arquivoFoto.exists()) { js("onErro", "sem_foto"); return; }
+        Uri uri = FileProvider.getUriForFile(this, "br.com.vozeolhar.fileprovider", arquivoFoto);
+        Intent i = new Intent(Intent.ACTION_SEND);
+        i.setType("image/jpeg");
+        i.putExtra(Intent.EXTRA_STREAM, uri);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            Intent g = new Intent(i);
+            g.setPackage("com.google.android.googlequicksearchbox");
+            startActivity(g);
+        } catch (Exception e) {
+            try { startActivity(Intent.createChooser(i, "Pesquisar a foto")); }
+            catch (Exception e2) { js("onErro", "sem_google"); }
+        }
+    }
+
+    private void abrirGoogle(String pergunta) {
+        if (tts != null) tts.stop();
+        try {
+            Intent v = new Intent("android.intent.action.VOICE_COMMAND");
+            v.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(v);
+            return;
+        } catch (Exception ignored) { }
+        try {
+            Intent w = new Intent(Intent.ACTION_WEB_SEARCH);
+            w.putExtra(android.app.SearchManager.QUERY, pergunta == null ? "" : pergunta);
+            startActivity(w);
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://www.google.com/search?q=" + Uri.encode(pergunta == null ? "" : pergunta))));
+            } catch (Exception e2) { js("onErro", "sem_google"); }
+        }
+    }
+
+    private void baixarWeb(String id, String url) {
+        JSONObject r = new JSONObject();
+        HttpURLConnection c = null;
+        try {
+            r.put("id", id);
+            if (!url.startsWith("https://pt.wikipedia.org/")) throw new Exception("site não permitido");
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(20000);
+            c.setRequestProperty("User-Agent", "VozEOlhar/1.2 (aplicativo Android de acessibilidade)");
+            c.setRequestProperty("Accept", "application/json");
+            int code = c.getResponseCode();
+            r.put("status", code);
+            r.put("corpo", ler(code >= 400 ? c.getErrorStream() : c.getInputStream()));
+        } catch (java.net.UnknownHostException | java.net.SocketTimeoutException | java.net.ConnectException e) {
+            try { r.put("status", -1); } catch (Exception ignored) { }
+        } catch (Exception e) {
+            try { r.put("status", 0); } catch (Exception ignored) { }
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        js("onWeb", r.toString());
+    }
+
+    // ---------------------------------------------------------------- Leitura da foto no celular
+
+    /** Lê o texto da foto e diz que tipo de coisa parece ser. Resultado em onAnalise(json). */
+    private void analisarFoto(Bitmap b) {
+        final InputImage img = InputImage.fromBitmap(b, 0);
+        final JSONObject res = new JSONObject();
+        final JSONArray blocos = new JSONArray();
+        final JSONArray rotulos = new JSONArray();
+        final int[] faltam = {2};
+        final Runnable fim = () -> {
+            synchronized (res) {
+                faltam[0]--;
+                if (faltam[0] > 0) return;
+            }
+            try { res.put("blocos", blocos); res.put("rotulos", rotulos); } catch (Exception ignored) { }
+            js("onAnalise", res.toString());
+        };
+
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(img)
+                .addOnSuccessListener(texto -> {
+                    for (Text.TextBlock bl : texto.getTextBlocks()) {
+                        for (Text.Line ln : bl.getLines()) {
+                            try {
+                                JSONObject o = new JSONObject();
+                                o.put("t", ln.getText());
+                                o.put("h", ln.getBoundingBox() != null ? ln.getBoundingBox().height() : 0);
+                                o.put("y", ln.getBoundingBox() != null ? ln.getBoundingBox().top : 0);
+                                blocos.put(o);
+                            } catch (Exception ignored) { }
+                        }
+                    }
+                    fim.run();
+                })
+                .addOnFailureListener(e -> fim.run());
+
+        ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS).process(img)
+                .addOnSuccessListener(lista -> {
+                    for (ImageLabel l : lista) {
+                        try {
+                            JSONObject o = new JSONObject();
+                            o.put("t", l.getText());
+                            o.put("c", l.getConfidence());
+                            rotulos.put(o);
+                        } catch (Exception ignored) { }
+                    }
+                    fim.run();
+                })
+                .addOnFailureListener(e -> fim.run());
     }
 
     // ---------------------------------------------------------------- Câmera
@@ -180,15 +320,19 @@ public class MainActivity extends Activity {
         }
         new Thread(() -> {
             try {
-                js("onFoto", prepararFoto(arquivoFoto));
+                Bitmap foto = prepararFoto(arquivoFoto);
+                ByteArrayOutputStream saida = new ByteArrayOutputStream();
+                foto.compress(Bitmap.CompressFormat.JPEG, 85, saida);
+                js("onFoto", Base64.encodeToString(saida.toByteArray(), Base64.NO_WRAP));
+                analisarFoto(foto);
             } catch (Exception e) {
                 js("onErro", "camera");
             }
         }).start();
     }
 
-    /** Diminui a foto para no máximo 1280 px, corrige o giro e devolve em base64 (JPEG). */
-    private String prepararFoto(File f) throws Exception {
+    /** Diminui a foto para no máximo 1280 px e corrige o giro. */
+    private Bitmap prepararFoto(File f) throws Exception {
         BitmapFactory.Options o = new BitmapFactory.Options();
         o.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(f.getAbsolutePath(), o);
@@ -208,11 +352,7 @@ public class MainActivity extends Activity {
         if (giro == ExifInterface.ORIENTATION_ROTATE_90) m.postRotate(90);
         else if (giro == ExifInterface.ORIENTATION_ROTATE_180) m.postRotate(180);
         else if (giro == ExifInterface.ORIENTATION_ROTATE_270) m.postRotate(270);
-        Bitmap pronto = Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
-
-        ByteArrayOutputStream saida = new ByteArrayOutputStream();
-        pronto.compress(Bitmap.CompressFormat.JPEG, 85, saida);
-        return Base64.encodeToString(saida.toByteArray(), Base64.NO_WRAP);
+        return Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
     }
 
     // ---------------------------------------------------------------- Microfone

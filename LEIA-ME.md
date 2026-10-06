@@ -22,24 +22,26 @@ A resposta aparece na tela e é lida em voz alta.
 2. Toque no arquivo. O Android vai pedir para **permitir instalar apps desta fonte**: permita.
 3. Abra o Voz e Olhar.
 
-## Primeira configuração (feita por quem cuida do aparelho)
+## Funciona sem chave nenhuma
 
-Na primeira vez abre a tela de **Ajustes**:
+Depois de instalar, é só abrir e usar. Não precisa configurar nada.
 
-1. Crie uma chave em https://console.anthropic.com (menu API Keys) e coloque crédito.
-2. Cole a chave (começa com `sk-ant-`) e toque em **Testar**. Deve aparecer "Funcionou!".
-3. Toque em **Fechar**. Pronto.
+- **Botão verde (Olhar):** o próprio celular lê o que está escrito na foto (rótulo, remédio, conta,
+  validade, valores) e diz que tipo de coisa parece ser. Se achar o nome do produto, pesquisa na
+  Wikipédia para dizer para que serve. O botão **Ver no Google** abre a foto no Google Lens.
+- **Botão amarelo (Falar):** perguntas do tipo "o que é..." são respondidas com a Wikipédia.
+  Perguntas sobre coisas de hoje (datas, horários, preços, endereços, "como faço para...") vão para
+  o botão **Perguntar ao Google**, que abre o Google Assistente para a pessoa perguntar falando.
 
-### Pesquisa na internet
+## Chave da API (opcional)
 
-O app pesquisa na internet quando a pergunta pede informação atual (preços, horários, endereços,
-datas de benefícios, notícias, previsão do tempo). Para funcionar, ligue a opção **Web search** em
-https://platform.claude.com/settings/capabilities (feito uma vez só, na conta da Anthropic).
-Cada pesquisa custa um pouco a mais (cerca de US$ 0,01). Dá para desligar nos Ajustes do app.
+Quem quiser as explicações mais completas, no jeito simples de conversa, pode colocar uma chave da
+API do Claude nos Ajustes (rodinha no canto de cima). Crie em https://platform.claude.com (API Keys)
+e coloque crédito em Billing. Se a chave ficar sem crédito ou der erro, o app volta sozinho para o
+modo gratuito.
 
-Por segurança, defina um **limite de gasto mensal** no console da Anthropic.
-A chave fica guardada só naquele celular; quem tiver o aparelho consegue usar o crédito.
-Os ajustes ficam na rodinha no canto de cima.
+Com chave, o app também pode pesquisar na internet pela própria IA: ligue **Web search** em
+https://platform.claude.com/settings/capabilities.
 
 ## O que o celular precisa
 
