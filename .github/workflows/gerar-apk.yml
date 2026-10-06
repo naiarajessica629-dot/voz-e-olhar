@@ -20,7 +20,14 @@ jobs:
       - name: Compilar
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon 2>&1 | tee build.log
+
+      - name: Mostrar erro
+        if: failure()
+        run: |
+          MSG=$(grep -E "error:|^e: |What went wrong|Could not|> " build.log | grep -v "^> Task" | head -30 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Erro na compilacao::${MSG}"
 
       - name: Renomear
         run: cp app/build/outputs/apk/debug/app-debug.apk VozEOlhar.apk
