@@ -116,9 +116,12 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
 
 <div class="config" id="config" hidden>
   <h2>Ajustes</h2>
-  <p>Esta parte é para quem está configurando o celular. <strong>A chave é opcional.</strong> Sem ela, o app lê as fotos com o próprio celular, pesquisa na internet e oferece o Google. Com uma chave da API do Claude (começa com <code>sk-ant-</code>), as explicações ficam mais completas e no jeito simples de conversa. A chave fica guardada só neste aparelho; para tirar, apague o campo e salve.</p>
+  <p>Esta parte é para quem está configurando o celular. Com o <strong>endereço do servidor</strong>, o app pesquisa na internet em segundo plano e já responde pronto, sem chave nenhuma no celular. <strong>A chave abaixo é opcional</strong> e só é usada quando não há servidor. Sem ela, o app lê as fotos com o próprio celular, pesquisa na internet e oferece o Google. Com uma chave da API do Claude (começa com <code>sk-ant-</code>), as explicações ficam mais completas e no jeito simples de conversa. A chave fica guardada só neste aparelho; para tirar, apague o campo e salve.</p>
   <label>Chave da API (opcional)
     <input id="cfgKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+  </label>
+  <label>Endereço do servidor
+    <input id="cfgServidor" type="url" autocomplete="off" placeholder="https://voz-e-olhar.....workers.dev">
   </label>
   <label>Modelo
     <input id="cfgModel" type="text" autocomplete="off">
@@ -135,6 +138,9 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
 
 <script>
 const MODELO_PADRAO = "claude-sonnet-5-5";
+/* Servidor do Voz e Olhar (Cloudflare). Ele pesquisa em segundo plano e devolve a resposta pronta. */
+const SERVIDOR_PADRAO = "";
+const TOKEN_APP = "voz--9XFtmCg6UTAzheBpzWreNCF";
 const RULES = `Você é o assistente virtual principal do aplicativo "Voz e Olhar", feito para apoiar pessoas analfabetas ou com pouca leitura na rotina do dia a dia.
 Seja muito prestativo, paciente, carinhoso e claro.
 
@@ -417,11 +423,42 @@ async function comporFoto(a){
 
 /* ---------- Olhar ---------- */
 eyeBtn.onclick=()=>{ if(!A) return; stopSpeak(); showNote(""); esconderGoogle(); A.tirarFoto(); };
+/* ---------- Servidor: pesquisa em segundo plano e resposta pronta ---------- */
+function servidor(){ return (ls("servidor")||SERVIDOR_PADRAO||"").trim(); }
+let pendenteSrv=null;
+function perguntarNoServidor({text,image}){
+  stopSpeak(); esconderGoogle(); setBusy(true);
+  const pedido=image?"(Mandei uma foto.)":`A pessoa perguntou falando: "${text}"`;
+  pendenteSrv={reserva:image?true:text, pedido};
+  A.perguntarServidor(servidor(), TOKEN_APP, JSON.stringify({pergunta:text||"", imagem:image||null, historico:turns.slice(-6)}));
+}
+function usarReserva(reserva){
+  /* Sem servidor/IA: o celular lê a foto e a Wikipédia responde */
+  if(reserva===true){ mostrarGoogle("lens"); if(ultimaAnalise){ comporFoto(ultimaAnalise).then(responder); } else { setBusy(true); esperandoAnalise=true; } }
+  else { setBusy(false); respostaGratis(reserva); }
+}
+window.onServidor=raw=>{
+  if(pendenteSrv&&pendenteSrv.cfg){ pendenteSrv=null; $("cfgMsg").textContent="Servidor funcionando! Pode fechar os ajustes."; return; }
+  let t=""; try{ t=JSON.parse(raw).texto||""; }catch(e){}
+  t=clean(t.replace(/https?:\/\/\S+/g,""));
+  const p=pendenteSrv; pendenteSrv=null;
+  if(!t){ if(p) usarReserva(p.reserva); else setBusy(false); return; }
+  if(p) turns.push({role:"user",content:p.pedido},{role:"assistant",content:t});
+  responder(t);
+};
+window.onServidorErro=code=>{
+  const p=pendenteSrv; pendenteSrv=null;
+  if(p&&p.cfg){ $("cfgMsg").textContent = code==="token" ? "O servidor recusou o código do app. Confira o APP_TOKEN na Cloudflare." : "Não consegui falar com o servidor. Confira o endereço."; return; }
+  if(code==="sem_internet"){ erro("sem_internet"); return; }
+  if(p) usarReserva(p.reserva); else setBusy(false);
+};
+
 window.onFoto=b64=>{
   photoEl.src="data:image/jpeg;base64,"+b64; photoEl.hidden=false;
   heardEl.hidden=true; whoEl.textContent="Olhando a sua foto";
   ultimaAnalise=null; mostrarGoogle("lens");
-  if(comIA()){ fotoComIA=true; esperandoAnalise=false; ask({image:b64}); }
+  if(servidor()){ fotoComIA=true; esperandoAnalise=false; perguntarNoServidor({image:b64}); }
+  else if(comIA()){ fotoComIA=true; esperandoAnalise=false; ask({image:b64}); }
   else { fotoComIA=false; esperandoAnalise=true; setBusy(true); }
 };
 window.onAnalise=async s=>{
@@ -457,14 +494,16 @@ window.onOuviu=t=>{
   t=(t||"").trim();
   if(!t){ answerEl.textContent="Não ouvi nada. Aperte o botão amarelo e fale bem pertinho do celular."; speak(answerEl.textContent); return; }
   heardEl.textContent="Você disse: "+t; heardEl.hidden=false;
-  if(comIA()){ mostrarGoogle("assist",t); ask({text:t}); }
+  if(servidor()) perguntarNoServidor({text:t});
+  else if(comIA()){ mostrarGoogle("assist",t); ask({text:t}); }
   else respostaGratis(t);
 };
 
 /* ---------- Ajustes ---------- */
 const cfg=$("config");
-function abrirAjustes(){ $("cfgKey").value=A?A.getKey():""; $("cfgModel").value=modelo(); $("cfgBusca").checked=ls("busca")!=="0"; $("cfgMsg").textContent=""; cfg.hidden=false; }
+function abrirAjustes(){ $("cfgServidor").value=servidor(); $("cfgKey").value=A?A.getKey():""; $("cfgModel").value=modelo(); $("cfgBusca").checked=ls("busca")!=="0"; $("cfgMsg").textContent=""; cfg.hidden=false; }
 function salvar(){
+  ls("servidor", $("cfgServidor").value.trim().replace(/\/+$/,""));
   if(A) A.setKey($("cfgKey").value.trim());
   const m=$("cfgModel").value.trim(); ls("modelo", m||MODELO_PADRAO);
   ls("busca", $("cfgBusca").checked?"1":"0");
@@ -474,7 +513,13 @@ $("gear").onclick=abrirAjustes;
 $("cfgSave").onclick=()=>{ salvar(); $("cfgMsg").textContent="Guardado."; };
 $("cfgTest").onclick=()=>{
   salvar(); if(!A) return;
-  if(!A.getKey()){ $("cfgMsg").textContent="Cole a chave primeiro."; return; }
+  if(servidor()){
+    $("cfgMsg").textContent="Testando o servidor...";
+    pendenteSrv={cfg:true};
+    A.perguntarServidor(servidor(), TOKEN_APP, JSON.stringify({pergunta:"Responda apenas: tudo certo", historico:[]}));
+    return;
+  }
+  if(!A.getKey()){ $("cfgMsg").textContent="Coloque o endereço do servidor ou uma chave para testar."; return; }
   $("cfgMsg").textContent="Testando...";
   pendente={cfg:true};
   const teste={model:modelo(),max_tokens:20,messages:[{role:"user",content:"Responda só: ok"}]};

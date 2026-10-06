@@ -22,6 +22,12 @@ A resposta aparece na tela e é lida em voz alta.
 2. Toque no arquivo. O Android vai pedir para **permitir instalar apps desta fonte**: permita.
 3. Abra o Voz e Olhar.
 
+## Servidor (pesquisa em segundo plano, resposta pronta)
+
+O jeito recomendado: um servidor gratuito na Cloudflare pesquisa na internet em segundo plano
+(Claude como principal, Brave Search como reserva) e devolve a resposta pronta, sem a pessoa
+sair do app e sem chave no celular. Passo a passo em `servidor/COMO-PUBLICAR.md`.
+
 ## Funciona sem chave nenhuma
 
 Depois de instalar, é só abrir e usar. Não precisa configurar nada.

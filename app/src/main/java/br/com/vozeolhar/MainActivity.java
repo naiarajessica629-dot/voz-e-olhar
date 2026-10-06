@@ -160,6 +160,12 @@ public class MainActivity extends Activity {
             new Thread(() -> chamarClaude(corpoJson)).start();
         }
 
+        /** Manda a pergunta/foto para o servidor do Voz e Olhar. Resposta em onServidor / onServidorErro. */
+        @JavascriptInterface
+        public void perguntarServidor(String url, String token, String corpoJson) {
+            new Thread(() -> chamarServidor(url, token, corpoJson)).start();
+        }
+
         /** Busca grátis na Wikipédia em português. Resposta em onWeb(json com id e corpo). */
         @JavascriptInterface
         public void buscarWeb(String id, String url) {
@@ -215,6 +221,34 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(Intent.ACTION_VIEW,
                         Uri.parse("https://www.google.com/search?q=" + Uri.encode(pergunta == null ? "" : pergunta))));
             } catch (Exception e2) { js("onErro", "sem_google"); }
+        }
+    }
+
+    private void chamarServidor(String url, String token, String corpoJson) {
+        HttpURLConnection c = null;
+        try {
+            if (url == null || !url.startsWith("https://")) { js("onServidorErro", "config"); return; }
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(20000);
+            c.setReadTimeout(180000);
+            c.setDoOutput(true);
+            c.setRequestProperty("content-type", "application/json");
+            c.setRequestProperty("x-app-token", token == null ? "" : token);
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(corpoJson.getBytes(StandardCharsets.UTF_8));
+            }
+            int code = c.getResponseCode();
+            String corpo = ler(code >= 400 ? c.getErrorStream() : c.getInputStream());
+            if (code == 200) js("onServidor", corpo);
+            else if (code == 401) js("onServidorErro", "token");
+            else js("onServidorErro", "servidor");
+        } catch (java.net.UnknownHostException | java.net.SocketTimeoutException | java.net.ConnectException e) {
+            js("onServidorErro", "sem_internet");
+        } catch (Exception e) {
+            js("onServidorErro", "servidor");
+        } finally {
+            if (c != null) c.disconnect();
         }
     }
 
