@@ -28,6 +28,8 @@ android {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    // Alinha as versões internas do Kotlin trazidas pelas bibliotecas (evita "Duplicate class")
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
     // Leitura de texto e reconhecimento de objetos no próprio celular (grátis, sem chave)
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:image-labeling:17.0.9")
