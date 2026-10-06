@@ -30,6 +30,13 @@ Na primeira vez abre a tela de **Ajustes**:
 2. Cole a chave (começa com `sk-ant-`) e toque em **Testar**. Deve aparecer "Funcionou!".
 3. Toque em **Fechar**. Pronto.
 
+### Pesquisa na internet
+
+O app pesquisa na internet quando a pergunta pede informação atual (preços, horários, endereços,
+datas de benefícios, notícias, previsão do tempo). Para funcionar, ligue a opção **Web search** em
+https://platform.claude.com/settings/capabilities (feito uma vez só, na conta da Anthropic).
+Cada pesquisa custa um pouco a mais (cerca de US$ 0,01). Dá para desligar nos Ajustes do app.
+
 Por segurança, defina um **limite de gasto mensal** no console da Anthropic.
 A chave fica guardada só naquele celular; quem tiver o aparelho consegue usar o crédito.
 Os ajustes ficam na rodinha no canto de cima.

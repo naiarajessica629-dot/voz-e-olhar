@@ -65,6 +65,8 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
 .config button.sec{border:2px solid var(--line);border-radius:14px;background:transparent;color:var(--ink);font-family:var(--display);font-weight:600;font-size:18px;padding:10px 18px}
 .config code{font-size:15px;background:var(--surface);padding:2px 6px;border-radius:6px}
 #cfgMsg{font-weight:700;color:var(--ink)}
+.config label.check{flex-direction:row;align-items:center;gap:12px;font-weight:700}
+.config label.check input{width:28px;height:28px;flex:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -116,6 +118,7 @@ h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;co
   <label>Modelo
     <input id="cfgModel" type="text" autocomplete="off">
   </label>
+  <label class="check"><input id="cfgBusca" type="checkbox"> Pesquisar na internet quando precisar</label>
   <div class="btns">
     <button class="main" id="cfgSave" type="button">Salvar</button>
     <button class="sec" id="cfgTest" type="button">Testar</button>
@@ -141,7 +144,13 @@ Se for remédio, diga o nome e para que serve, e sempre lembre de perguntar a al
 
 Quando chegar uma PERGUNTA: responda direto, focando na solução prática, com passo a passo falado e simples.
 
+PESQUISA NA INTERNET: você pode pesquisar na internet. Pesquise sempre que a resposta depender de informação atual ou local, como preço, horário de funcionamento, endereço, telefone, data de pagamento de benefício (Bolsa Família, INSS, aposentadoria), notícias, previsão do tempo, vacinação, ônibus ou documentos. Também pesquise para confirmar o nome e o uso de um produto ou remédio quando não tiver certeza.
+Depois de pesquisar, conte só o que importa, em palavras simples. Nunca leia endereço de site, link ou código. Se quiser dizer de onde veio a informação, fale de um jeito simples, por exemplo: "Eu vi no site da Caixa". Se não achar uma informação confiável, diga com sinceridade e indique onde a pessoa pode perguntar (posto de saúde, CRAS, agência da Caixa, farmácia).
+Não diga "vou pesquisar" nem explique o que está fazendo: dê só a resposta final.
+
 Sempre com respeito, encorajamento e jeito humano. Responda em português do Brasil.`;
+const BUSCA = {type:"web_search_20250305", name:"web_search", max_uses:3,
+  user_location:{type:"approximate", country:"BR", timezone:"America/Sao_Paulo"}};
 
 const A = window.Android || null;
 const $ = id => document.getElementById(id);
@@ -184,9 +193,16 @@ function erro(code){
   showNote(t); speak(t);
 }
 window.onErro=code=>{
+  if(code==="sem_pesquisa"){
+    /* Pesquisa desligada no console: lembra disso e refaz o pedido sem ela */
+    ls("semPesquisa","1");
+    if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="A chave funciona, mas a pesquisa na internet está desligada. Ligue em platform.claude.com/settings/capabilities (Web search) e teste de novo."; return; }
+    if(pendente&&pendente.body){ delete pendente.body.tools; A.perguntar(JSON.stringify(pendente.body)); return; }
+  }
   if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="Não funcionou: "+(ERROS[code]||code); return; }
   pendente=null; erro(code);
 };
+function usarBusca(){ return ls("busca")!=="0" && ls("semPesquisa")!=="1"; }
 
 /* ---------- Conversa com o Claude ---------- */
 function ask({text, image}){
@@ -200,14 +216,35 @@ function ask({text, image}){
     ? [{type:"image",source:{type:"base64",media_type:"image/jpeg",data:image}},{type:"text",text:pedido}]
     : pedido;
   const msgs=[...turns.slice(-6),{role:"user",content}];
-  pendente={pedido:image?"(Mandei uma foto.)":pedido};
-  A.perguntar(JSON.stringify({model:modelo(),max_tokens:700,system:RULES,messages:msgs}));
+  const body={model:modelo(),max_tokens:1024,system:RULES,messages:msgs};
+  if(usarBusca()) body.tools=[BUSCA];
+  pendente={pedido:image?"(Mandei uma foto.)":pedido, body, voltas:0};
+  A.perguntar(JSON.stringify(body));
+}
+/* Pega só o texto final: o que vem depois do último resultado de pesquisa */
+function textoFinal(blocos){
+  let ini=0;
+  blocos.forEach((b,i)=>{ if(b.type==="web_search_tool_result"||b.type==="server_tool_use") ini=i+1; });
+  const txt=blocos.slice(ini).filter(b=>b.type==="text").map(b=>b.text).join("");
+  return txt.trim() ? txt : blocos.filter(b=>b.type==="text").map(b=>b.text).join("");
 }
 window.onResposta=raw=>{
-  if(pendente&&pendente.cfg){ pendente=null; $("cfgMsg").textContent="Funcionou! Pode fechar os ajustes."; return; }
-  let t="";
-  try{ const j=JSON.parse(raw); t=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"); }catch(e){}
-  t=clean(t);
+  if(pendente&&pendente.cfg){
+    pendente=null;
+    $("cfgMsg").textContent = usarBusca() ? "Funcionou, com pesquisa na internet! Pode fechar os ajustes." : "Funcionou! (sem pesquisa na internet)";
+    return;
+  }
+  let t="", j=null;
+  try{ j=JSON.parse(raw); }catch(e){}
+  /* Pesquisa longa: a API pede para continuar de onde parou */
+  if(j && j.stop_reason==="pause_turn" && pendente && pendente.body && pendente.voltas<3){
+    pendente.voltas++;
+    pendente.body.messages.push({role:"assistant",content:j.content});
+    A.perguntar(JSON.stringify(pendente.body));
+    return;
+  }
+  if(j) t=textoFinal(j.content||[]);
+  t=clean(t.replace(/https?:\/\/\S+/g,""));
   setBusy(false);
   if(!t){ erro("servidor"); return; }
   answerEl.textContent=t;
@@ -253,8 +290,13 @@ window.onOuviu=t=>{
 
 /* ---------- Ajustes ---------- */
 const cfg=$("config");
-function abrirAjustes(){ $("cfgKey").value=A?A.getKey():""; $("cfgModel").value=modelo(); $("cfgMsg").textContent=""; cfg.hidden=false; }
-function salvar(){ if(A) A.setKey($("cfgKey").value.trim()); const m=$("cfgModel").value.trim(); ls("modelo", m||MODELO_PADRAO); }
+function abrirAjustes(){ $("cfgKey").value=A?A.getKey():""; $("cfgModel").value=modelo(); $("cfgBusca").checked=ls("busca")!=="0"; $("cfgMsg").textContent=""; cfg.hidden=false; }
+function salvar(){
+  if(A) A.setKey($("cfgKey").value.trim());
+  const m=$("cfgModel").value.trim(); ls("modelo", m||MODELO_PADRAO);
+  ls("busca", $("cfgBusca").checked?"1":"0");
+  ls("semPesquisa","0"); /* testa a pesquisa de novo da próxima vez */
+}
 $("gear").onclick=abrirAjustes;
 $("cfgSave").onclick=()=>{ salvar(); $("cfgMsg").textContent="Guardado."; };
 $("cfgTest").onclick=()=>{
@@ -262,7 +304,9 @@ $("cfgTest").onclick=()=>{
   if(!A.getKey()){ $("cfgMsg").textContent="Cole a chave primeiro."; return; }
   $("cfgMsg").textContent="Testando...";
   pendente={cfg:true};
-  A.perguntar(JSON.stringify({model:modelo(),max_tokens:20,messages:[{role:"user",content:"Responda só: ok"}]}));
+  const teste={model:modelo(),max_tokens:20,messages:[{role:"user",content:"Responda só: ok"}]};
+  if(usarBusca()) teste.tools=[BUSCA];
+  A.perguntar(JSON.stringify(teste));
 };
 $("cfgClose").onclick=()=>{ cfg.hidden=true; };
 window.voltar=()=>{ if(!cfg.hidden){ cfg.hidden=true; return true; } if(listening){ A&&A.pararDeOuvir(); return true; } return false; };

@@ -276,7 +276,7 @@ public class MainActivity extends Activity {
             c = (HttpURLConnection) new URL(API_URL).openConnection();
             c.setRequestMethod("POST");
             c.setConnectTimeout(20000);
-            c.setReadTimeout(120000);
+            c.setReadTimeout(180000);
             c.setDoOutput(true);
             c.setRequestProperty("content-type", "application/json");
             c.setRequestProperty("x-api-key", key);
@@ -291,6 +291,7 @@ public class MainActivity extends Activity {
             else if (code == 401 || code == 403) js("onErro", "chave_invalida");
             else if (code == 429 || code == 529) js("onErro", "ocupado");
             else if (code == 400 && corpo.contains("credit")) js("onErro", "sem_credito");
+            else if (code == 400 && corpo.toLowerCase(Locale.ROOT).replace('_', ' ').contains("web search")) js("onErro", "sem_pesquisa");
             else js("onErro", "servidor");
         } catch (java.net.UnknownHostException | java.net.SocketTimeoutException | java.net.ConnectException e) {
             js("onErro", "sem_internet");
