@@ -1,0 +1,256 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Voz e Olhar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: one-screen app — greeting bubble on top, two giant action buttons (Olhar / Falar) at thumb height */
+:root{
+  --bg:#EAF2EF; --surface:#FFFFFF; --ink:#11302A; --muted:#4D6660;
+  --eye:#0B7A62; --eye-ink:#FFFFFF; --voice:#F4B400; --voice-ink:#2B2100;
+  --line:#C9DAD4; --alert:#B3261E;
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1B18; --surface:#16302A; --ink:#EAF4F0; --muted:#A9C2BB;
+  --eye:#2FB592; --eye-ink:#06231C; --voice:#F7C531; --voice-ink:#2B2100;
+  --line:#27463F; --alert:#FF8A80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1B18; --surface:#16302A; --ink:#EAF4F0; --muted:#A9C2BB;
+  --eye:#2FB592; --eye-ink:#06231C; --voice:#F7C531; --voice-ink:#2B2100;
+  --line:#27463F; --alert:#FF8A80; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:20px;line-height:1.5}
+.app{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:16px 24px;display:flex;flex-direction:column;gap:18px;min-height:100%;box-sizing:border-box}
+header{display:flex;align-items:center;gap:12px}
+.logo{width:48px;height:48px;flex:none}
+h1{font-family:var(--display);font-weight:800;font-size:30px;line-height:1;margin:0;letter-spacing:-.01em}
+h1 small{display:block;font-family:var(--body);font-weight:400;font-size:15px;color:var(--muted);letter-spacing:0;margin-top:4px}
+
+.bubble{background:var(--surface);border:2px solid var(--line);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.bubble p{margin:0;font-size:22px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble .who{font-family:var(--display);font-weight:600;font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.photo{width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:var(--bg)}
+.heard{font-size:18px;color:var(--muted);font-style:italic}
+.thinking{display:flex;gap:8px;align-items:center;height:30px}
+.thinking span{width:14px;height:14px;border-radius:50%;background:var(--eye);animation:pulse 1.2s infinite ease-in-out}
+.thinking span:nth-child(2){animation-delay:.2s}.thinking span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.small{display:inline-flex;align-items:center;gap:10px;border:2px solid var(--line);background:transparent;color:var(--ink);font-family:var(--display);font-weight:600;font-size:18px;padding:10px 16px;border-radius:999px;cursor:pointer;min-height:52px}
+.small svg{width:26px;height:26px}
+.small.on{background:var(--eye);border-color:var(--eye);color:var(--eye-ink)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:auto}
+.big{border:none;border-radius:28px;min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;font-family:var(--display);font-weight:800;font-size:28px;line-height:1;transition:transform .12s ease, box-shadow .12s ease;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+.big:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.big svg{width:76px;height:76px}
+.eye{background:var(--eye);color:var(--eye-ink)}
+.voice{background:var(--voice);color:var(--voice-ink)}
+.voice.listening{animation:ring 1.4s infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(244,180,0,.7),0 6px 0 rgba(0,0,0,.18)}100%{box-shadow:0 0 0 22px rgba(244,180,0,0),0 6px 0 rgba(0,0,0,.18)}}
+.big:disabled{opacity:.55;cursor:wait}
+button:focus-visible{outline:4px solid var(--ink);outline-offset:3px}
+
+.typed{display:flex;gap:10px}
+.typed input{flex:1;min-width:0;font:inherit;font-size:20px;padding:12px 14px;border-radius:16px;border:2px solid var(--line);background:var(--surface);color:var(--ink)}
+.typed button{border:none;border-radius:16px;background:var(--eye);color:var(--eye-ink);font-family:var(--display);font-weight:800;font-size:20px;padding:0 18px;cursor:pointer}
+.note{font-size:16px;color:var(--alert);margin:0}
+.hint{font-size:15px;color:var(--muted);text-align:center;margin:0}
+.linkish{background:none;border:none;color:var(--muted);font:inherit;font-size:16px;text-decoration:underline;cursor:pointer;padding:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <header>
+    <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="23" fill="var(--eye)"/>
+      <path d="M8 24c4-7 9.5-10.5 16-10.5S36 17 40 24c-4 7-9.5 10.5-16 10.5S12 31 8 24z" fill="var(--surface)"/>
+      <circle cx="24" cy="24" r="6" fill="var(--voice)"/><circle cx="24" cy="24" r="2.6" fill="var(--ink)"/>
+    </svg>
+    <h1>Voz e Olhar<small>Mostre uma foto ou fale comigo</small></h1>
+  </header>
+
+  <section class="bubble" id="bubble" aria-live="polite">
+    <div class="who">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="var(--eye)"/></svg>
+      <span id="who">Seu ajudante</span>
+    </div>
+    <img id="photo" class="photo" alt="Foto que você mandou" hidden>
+    <p id="heard" class="heard" hidden></p>
+    <div id="thinking" class="thinking" hidden aria-label="Pensando"><span></span><span></span><span></span></div>
+    <p id="answer">Oi! Que bom ter você aqui. Eu sou o Voz e Olhar. Aperte o botão verde para me mostrar uma coisa com a câmera. Ou aperte o botão amarelo para falar comigo.</p>
+    <div class="row">
+      <button class="small" id="replay" type="button" aria-label="Ouvir de novo">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+        <span id="replayLabel">Ouvir</span>
+      </button>
+    </div>
+    <p id="note" class="note" hidden></p>
+  </section>
+
+  <div class="actions">
+    <button class="big eye" id="eyeBtn" type="button" aria-label="Olhar: tirar foto">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 14.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+      Olhar
+    </button>
+    <button class="big voice" id="voiceBtn" type="button" aria-label="Falar">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"/></svg>
+      <span id="voiceLabel">Falar</span>
+    </button>
+  </div>
+  <input id="camera" type="file" accept="image/*" capture="environment" hidden>
+
+  <form class="typed" id="typed" hidden>
+    <input id="typedInput" type="text" placeholder="Escreva sua pergunta" aria-label="Escreva sua pergunta" autocomplete="off">
+    <button type="submit">Enviar</button>
+  </form>
+  <p class="hint"><button class="linkish" id="showTyped" type="button">Prefiro escrever</button></p>
+</div>
+
+<script>
+const RULES = `Você é o assistente virtual principal do aplicativo "Voz e Olhar", feito para apoiar pessoas analfabetas ou com pouca leitura na rotina do dia a dia.
+Seja muito prestativo, paciente, carinhoso e claro.
+
+Como falar:
+1. Nunca use termos técnicos, jargões ou palavras difíceis. Fale simples e natural, como numa conversa amiga de compadre ou comadre.
+2. Sua resposta vai virar áudio para a pessoa ouvir. Escreva frases curtas, em tom acolhedor e com ritmo calmo.
+3. Evite texto longo, listas grandes e números complicados. Se precisar explicar algo, use no máximo 3 passos, falados em frases ("Primeiro... Depois... Por último...").
+4. Não use asteriscos, marcadores, emojis, títulos nem formatação. Só texto corrido, de no máximo umas 5 frases curtas.
+
+Quando chegar uma FOTO: diga o que é a coisa de forma simples e explique para que serve ou como ajuda no dia a dia. Exemplo: "Isso é um pacote de arroz. Ele serve para fazer comida. Para cozinhar, você mistura com água e leva ao fogo."
+Se for remédio, diga o nome e para que serve, e sempre lembre de perguntar a alguém de confiança, ao farmacêutico ou ao posto de saúde antes de tomar. Se for algo perigoso (veneno, produto de limpeza, fogo, eletricidade), avise com cuidado. Se for dinheiro, conta, documento ou papel, leia o que for importante (valor, data de vencimento, nome) de forma simples. Se a foto estiver ruim, peça com carinho para tirar outra, mais perto e com mais luz.
+
+Quando chegar uma PERGUNTA: responda direto, focando na solução prática, com passo a passo falado e simples.
+
+Sempre com respeito, encorajamento e jeito humano. Responda em português do Brasil.`;
+
+const $ = id => document.getElementById(id);
+const answerEl=$("answer"), photoEl=$("photo"), heardEl=$("heard"), thinkingEl=$("thinking"), noteEl=$("note"), whoEl=$("who");
+const eyeBtn=$("eyeBtn"), voiceBtn=$("voiceBtn"), camera=$("camera");
+let sample=null, dict=null, canImages=false, turns=[], busy=false, ctl=null;
+
+/* ---------- Voz (fala em voz alta) ---------- */
+let ptVoice=null;
+function pickVoice(){ try{ const vs=speechSynthesis.getVoices(); ptVoice=vs.find(v=>/pt[-_]BR/i.test(v.lang))||vs.find(v=>/^pt/i.test(v.lang))||null; }catch(e){} }
+if("speechSynthesis" in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
+function speak(text){
+  if(!("speechSynthesis" in window)) return;
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang="pt-BR"; u.rate=0.9; u.pitch=1; if(ptVoice) u.voice=ptVoice;
+    u.onstart=()=>setReplay(true); u.onend=u.onerror=()=>setReplay(false);
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopSpeak(){ try{ speechSynthesis.cancel(); }catch(e){} setReplay(false); }
+function setReplay(on){ $("replay").classList.toggle("on",on); $("replayLabel").textContent=on?"Parar":"Ouvir"; }
+$("replay").onclick=()=>{ if($("replay").classList.contains("on")) stopSpeak(); else speak(answerEl.textContent); };
+
+/* ---------- Tela ---------- */
+function showNote(t){ noteEl.textContent=t; noteEl.hidden=!t; if(t) speak(t); }
+function setBusy(on){ busy=on; thinkingEl.hidden=!on; eyeBtn.disabled=on; if(!listening) voiceBtn.disabled=on; if(on){answerEl.textContent=""; noteEl.hidden=true;} }
+function clean(t){ return t.replace(/[*#_>`•]/g,"").replace(/^\s*[-–]\s+/gm,"").trim(); }
+
+const ERR={
+  not_granted:"Para eu poder ajudar, é preciso deixar o aplicativo conversar comigo. Peça para alguém de confiança liberar.",
+  sampling_disabled:"Agora eu não consigo responder nesta conta. Peça ajuda para alguém de confiança.",
+  rate_limited:"Muita gente me chamou de uma vez. Espere um pouquinho e tente de novo.",
+  session_expired:"Precisa entrar na conta de novo. Peça ajuda para alguém de confiança.",
+  image_rejected:"Não consegui ver essa foto. Tente tirar outra, por favor.",
+  images_unavailable:"Neste aparelho eu ainda não consigo ver fotos. Mas pode falar comigo pelo botão amarelo.",
+  refused:"Desculpe, sobre isso eu não posso ajudar. Pode me perguntar outra coisa.",
+};
+function errText(e){ return ERR[e&&e.code] || "Deu um probleminha aqui. Aperte o botão de novo, com calma."; }
+
+async function ask({text, image}){
+  if(!sample){ showNote("Agora eu não consigo responder. Tente abrir o aplicativo de novo."); return; }
+  stopSpeak();
+  setBusy(true);
+  const userMsg = image
+    ? "A pessoa me mandou uma FOTO de um objeto. Olhe a imagem e responda seguindo as regras."+(text?`\nEla também disse: "${text}"`:"")
+    : `A pessoa perguntou falando: "${text}"`;
+  const history = turns.slice(-6);
+  const input=[{role:"user",content:RULES},...history,{role:"user",content:userMsg}];
+  ctl=new AbortController();
+  try{
+    const opts={signal:ctl.signal, cache:false, onText:({text})=>{ thinkingEl.hidden=true; answerEl.textContent=clean(text); }};
+    if(image) opts.images=image;
+    const {text:out}=await sample(input,opts);
+    const final=clean(out);
+    answerEl.textContent=final;
+    turns.push({role:"user",content:image?"(Mandei uma foto.)":userMsg},{role:"assistant",content:final});
+    speak(final);
+  }catch(e){
+    if(e&&e.code==="cancelled"){ answerEl.textContent=e.text?clean(e.text):""; }
+    else{ answerEl.textContent=(e&&e.text&&e.code!=="refused")?clean(e.text):""; showNote(errText(e)); }
+  }finally{ setBusy(false); }
+}
+
+/* ---------- Olhar (foto) ---------- */
+eyeBtn.onclick=()=>{
+  if(!canImages){ showNote(ERR.images_unavailable); return; }
+  camera.value=""; camera.click();
+};
+camera.onchange=()=>{
+  const f=camera.files&&camera.files[0]; if(!f) return;
+  try{ photoEl.src=URL.createObjectURL(f); photoEl.hidden=false; }catch(e){}
+  heardEl.hidden=true; whoEl.textContent="Olhando a sua foto";
+  ask({image:f});
+};
+
+/* ---------- Falar (voz) ---------- */
+let listening=false, spoken="";
+function setListening(on){
+  listening=on; voiceBtn.classList.toggle("listening",on);
+  $("voiceLabel").textContent=on?"Pronto":"Falar";
+  voiceBtn.setAttribute("aria-label",on?"Terminei de falar":"Falar");
+}
+voiceBtn.onclick=()=>{
+  if(!dict){ openTyped("Neste aparelho eu não consigo ouvir. Peça para alguém escrever a pergunta aqui embaixo."); return; }
+  if(listening){ dict.stop(); return; }
+  stopSpeak(); spoken="";
+  dict.start({language:"pt-BR"}).catch(e=>{
+    setListening(false);
+    if(e.code==="not_granted") openTyped("Eu preciso de permissão para usar o microfone. Peça para alguém de confiança liberar.");
+    else if(e.code==="unavailable") openTyped("Neste aparelho eu não consigo ouvir. Peça para alguém escrever a pergunta aqui embaixo.");
+    else if(e.code!=="stopped" && e.code!=="dismissed") showNote("Não consegui ouvir. Aperte o botão amarelo de novo.");
+  });
+};
+function wireDictation(){
+  dict.onFinal(({text})=>{ spoken+=text; heardEl.textContent="Você disse: "+spoken.trim(); heardEl.hidden=false; });
+  dict.onPartial(({text})=>{ if(text){ heardEl.textContent="Você disse: "+(spoken+" "+text).trim(); heardEl.hidden=false; } });
+  dict.onState(({state})=>{
+    if(state==="listening"||state==="starting"){ setListening(true); photoEl.hidden=true; whoEl.textContent="Estou ouvindo..."; answerEl.textContent="Pode falar. Quando terminar, aperte o botão amarelo de novo."; }
+    if(state==="idle"){
+      setListening(false);
+      const q=spoken.trim();
+      if(q){ whoEl.textContent="Seu ajudante"; ask({text:q}); }
+      else if(!busy){ whoEl.textContent="Seu ajudante"; answerEl.textContent="Não ouvi nada. Aperte o botão amarelo e fale bem pertinho do celular."; }
+    }
+  });
+}
+
+/* ---------- Escrever (alternativa) ---------- */
+function openTyped(msg){ $("typed").hidden=false; $("showTyped").hidden=true; if(msg) showNote(msg); $("typedInput").focus(); }
+$("showTyped").onclick=()=>openTyped("");
+$("typed").addEventListener("submit",e=>{
+  e.preventDefault(); const q=$("typedInput").value.trim(); if(!q||busy) return;
+  $("typedInput").value=""; photoEl.hidden=true; heardEl.textContent="Você perguntou: "+q; heardEl.hidden=false; whoEl.textContent="Seu ajudante";
+  ask({text:q});
+});
+
+/* ---------- Ligar recursos ---------- */
+(async()=>{
+  if(!window.claude||!claude.use) return;
+  claude.use("sample").then(async s=>{
+    sample=s;
+    if(s){ try{ const l=await s.limits(); canImages=!!(l&&l.images); }catch(e){ canImages=false; } }
+  });
+  claude.use("dictation").then(d=>{ dict=d; if(d) wireDictation(); });
+})();
+</script>
+
+</body></html>
